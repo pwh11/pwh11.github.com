@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   
-  <title>Archives: 2015/2 | pwh1&#39;s home</title>
+  <title>matlab | pwh1&#39;s home</title>
   <meta name="author" content="pwh1">
 
   
@@ -31,7 +31,7 @@
   <div id="content" class="inner">
 
 <header id="archive-header">
-  <h1 class="alignleft">Archives: 2015/2</h1>
+  <h1 class="alignleft">Tag: matlab</h1>
   <div class="search alignright">
     <form action="http://google.com/search" method="get" accept-charset="utf-8">
       <input type="search" name="q" results="0" placeholder="Search">
@@ -59,22 +59,44 @@
   <header>
     
   
-    <h1 class="title"><a href="/2015/02/08/博客打扫重新开张/">博客打扫重新开张</a></h1>
+    <h1 class="title"><a href="/2013/09/25/递归复制所有子文件夹下的文件/">matlab递归复制所有子文件夹下的文件</a></h1>
   
 
-    <time datetime="2015-02-08T11:31:05.000Z">
-  <span class="day">8</span><span class="month">Feb</span>
+    <time datetime="2013-09-25T00:02:29.000Z">
+  <span class="day">25</span><span class="month">Sep</span>
 </time>
   </header>
   <div class="entry-content">
     
-      <p>改用了简约的主题，并且新增了<a href="/Homepage/">HomePage</a></p>
+      <p>递归复制文件夹及其子目录下的所有jpg文件(其他格式类似)</p>
+<pre><code><span class="function"><span class="keyword">function</span> <span class="title">copyAllFile</span><span class="params">(path,dest_path)</span></span>
+%复制path下的所有jpg文件（包含子目录下）到dest_path下
+%<span class="transposed_variable">e.</span>g copyAllFile(<span class="string">'F:\2015.2\标图\test'</span>,<span class="string">'F:\2015.2\标图\copied'</span>)
+<span class="built_in">list</span>=dir(path);
+num=<span class="built_in">length</span>(<span class="built_in">list</span>);
+<span class="keyword">for</span> m=<span class="number">1</span>:num
+    <span class="keyword">if</span> strcmp(<span class="built_in">list</span>(m,<span class="number">1</span>).name,<span class="string">'.'</span>)||strcmp(<span class="built_in">list</span>(m,<span class="number">1</span>).name,<span class="string">'..'</span>)
+        <span class="keyword">continue</span>;
+    <span class="keyword">else</span> <span class="keyword">if</span> <span class="built_in">list</span>(m,<span class="number">1</span>).isdir
+            copyAllFile(fullfile(path,<span class="built_in">list</span>(m,<span class="number">1</span>).name),dest_path);
+        <span class="keyword">else</span>
+            t=<span class="built_in">list</span>(m,<span class="number">1</span>).name;
+            <span class="keyword">if</span> strcmp(t(<span class="keyword">end</span>-<span class="number">3</span>:<span class="keyword">end</span>),<span class="string">'.jpg'</span>)
+                copyfile(fullfile(path,<span class="built_in">list</span>(m,<span class="number">1</span>).name),fullfile(dest_path,<span class="built_in">list</span>(m,<span class="number">1</span>).name));
+            <span class="keyword">end</span>
+        <span class="keyword">end</span>
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+</code></pre><p><a href="/files/copyAllFile.m">copyAllFile.m</a></p>
 
     
     
     <footer class="meta">
       
       
+  <div class="tags">
+<a href="/tags/matlab/">matlab</a></div>
+
       
     </footer>
     

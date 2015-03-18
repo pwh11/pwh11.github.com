@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   
-  <title>Archives: 2015/2 | pwh1&#39;s home</title>
+  <title>LibSVM | pwh1&#39;s home</title>
   <meta name="author" content="pwh1">
 
   
@@ -31,7 +31,7 @@
   <div id="content" class="inner">
 
 <header id="archive-header">
-  <h1 class="alignleft">Archives: 2015/2</h1>
+  <h1 class="alignleft">Tag: LibSVM</h1>
   <div class="search alignright">
     <form action="http://google.com/search" method="get" accept-charset="utf-8">
       <input type="search" name="q" results="0" placeholder="Search">
@@ -59,22 +59,25 @@
   <header>
     
   
-    <h1 class="title"><a href="/2015/02/08/博客打扫重新开张/">博客打扫重新开张</a></h1>
+    <h1 class="title"><a href="/2013/09/12/LibSVM如何从matlab模型转化为C模型/">LibSVM如何从matlab模型转化为C模型</a></h1>
   
 
-    <time datetime="2015-02-08T11:31:05.000Z">
-  <span class="day">8</span><span class="month">Feb</span>
+    <time datetime="2013-09-11T23:38:38.000Z">
+  <span class="day">12</span><span class="month">Sep</span>
 </time>
   </header>
   <div class="entry-content">
     
-      <p>改用了简约的主题，并且新增了<a href="/Homepage/">HomePage</a></p>
+      <p>ibsvm没有提供直接从model.mat转化为mdoel.model的函数，网上几乎搜不到相关信息，打算自己动手写一个转换函数，参考matlab的example里面的<a href="http://www.gridlabd.org/documents/doxygen/1.1/explore_8c-source.html" target="_blank" rel="external">explore.c</a>.写的时候发现其他参数读取都没有问题，唯独model.totalSV怎么都读不正确，抓狂的是VS2012在此处还没法调试，一边想着解决方案，一边继续搜索能否直接将model.mat转化为model.model，终于在StackOverFlow上搜到了<a href="http://stackoverflow.com/questions/11744244/lib-svm-how-to-convert-mymodel-mat-to-mymodel-model" target="_blank" rel="external">lib-svm-how-to-convert-mymodel-mat-to-mymodel-model</a>，代码对answer里面进行了改进。</p>
 
     
     
     <footer class="meta">
       
       
+  <div class="tags">
+<a href="/tags/LibSVM/">LibSVM</a></div>
+
       
     </footer>
     
