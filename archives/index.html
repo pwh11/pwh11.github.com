@@ -24,8 +24,6 @@
     
       <li><a href="/">Blog</a></li>
     
-      <li><a href="/archives">Archives</a></li>
-    
   </ul>
 </nav></header>
   <div id="content" class="inner">
@@ -108,27 +106,7 @@
   </header>
   <div class="entry-content">
     
-      <p>递归复制文件夹及其子目录下的所有jpg文件(其他格式类似)</p>
-<pre><code><span class="function"><span class="keyword">function</span> <span class="title">copyAllFile</span><span class="params">(path,dest_path)</span></span>
-%复制path下的所有jpg文件（包含子目录下）到dest_path下
-%<span class="transposed_variable">e.</span>g copyAllFile(<span class="string">'F:\2015.2\标图\test'</span>,<span class="string">'F:\2015.2\标图\copied'</span>)
-<span class="built_in">list</span>=dir(path);
-num=<span class="built_in">length</span>(<span class="built_in">list</span>);
-<span class="keyword">for</span> m=<span class="number">1</span>:num
-    <span class="keyword">if</span> strcmp(<span class="built_in">list</span>(m,<span class="number">1</span>).name,<span class="string">'.'</span>)||strcmp(<span class="built_in">list</span>(m,<span class="number">1</span>).name,<span class="string">'..'</span>)
-        <span class="keyword">continue</span>;
-    <span class="keyword">else</span> <span class="keyword">if</span> <span class="built_in">list</span>(m,<span class="number">1</span>).isdir
-            copyAllFile(fullfile(path,<span class="built_in">list</span>(m,<span class="number">1</span>).name),dest_path);
-        <span class="keyword">else</span>
-            t=<span class="built_in">list</span>(m,<span class="number">1</span>).name;
-            <span class="keyword">if</span> strcmp(t(<span class="keyword">end</span>-<span class="number">3</span>:<span class="keyword">end</span>),<span class="string">'.jpg'</span>)
-                copyfile(fullfile(path,<span class="built_in">list</span>(m,<span class="number">1</span>).name),fullfile(dest_path,<span class="built_in">list</span>(m,<span class="number">1</span>).name));
-            <span class="keyword">end</span>
-        <span class="keyword">end</span>
-    <span class="keyword">end</span>
-<span class="keyword">end</span>
-</code></pre><p><a href="/files/copyAllFile.m">copyAllFile.m</a></p>
-
+      <p>递归复制文件夹及其子目录下的所有jpg文件(其他格式类似)<br>
     
     
     <footer class="meta">
