@@ -1,0 +1,533 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>LibSVM如何从matlab模型转化为C模型 | pwh1&#39;s home</title>
+  <meta name="author" content="pwh1">
+
+  
+  <meta name="description" content="ibsvm没有提供直接从model.mat转化为mdoel.model的函数，网上几乎搜不到相关信息，打算自己动手写一个转换函数，参考matlab的example里面的explore.c.写的时候发现其他参数读取都没有问题，唯独model.totalSV怎么都读不正确，抓狂的是VS2012在此处还没法调试，一边想着解决方案，一边继续搜索能否直接将model.mat转化为model.model，终于在StackOverFlow上搜到了lib-svm-how-to-convert-mymodel-mat-to-mymodel-model，代码对answer里面进行了改进。">
+  
+  
+
+  <link rel="alternate" href="/atom.xml" title="pwh1&#39;s home" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+  
+</head>
+
+<body>
+  <header id="header" class="inner"><nav>
+  <ul>
+    
+      <li><a href="/Homepage">Homepage</a></li>
+    
+      <li><a href="/">Blog</a></li>
+    
+  </ul>
+</nav></header>
+  <div id="content" class="inner"><article class="post">
+  
+    <div class="gallery">
+  <div class="photoset">
+    
+      <img src="">
+    
+  </div>
+  <div class="control">
+    <div class="prev"></div>
+    <div class="next"></div>
+  </div>
+</div>
+  
+  <header>
+    
+  
+    <h1 class="title">LibSVM如何从matlab模型转化为C模型</h1>
+  
+
+    <time datetime="2013-09-11T23:38:38.000Z">
+  <span class="day">12</span><span class="month">Sep</span>
+</time>
+  </header>
+  <div class="entry-content">
+    
+      <p>ibsvm没有提供直接从model.mat转化为mdoel.model的函数，网上几乎搜不到相关信息，打算自己动手写一个转换函数，参考matlab的example里面的<a href="http://www.gridlabd.org/documents/doxygen/1.1/explore_8c-source.html" target="_blank" rel="external">explore.c</a>.写的时候发现其他参数读取都没有问题，唯独model.totalSV怎么都读不正确，抓狂的是VS2012在此处还没法调试，一边想着解决方案，一边继续搜索能否直接将model.mat转化为model.model，终于在StackOverFlow上搜到了<a href="http://stackoverflow.com/questions/11744244/lib-svm-how-to-convert-mymodel-mat-to-mymodel-model" target="_blank" rel="external">lib-svm-how-to-convert-mymodel-mat-to-mymodel-model</a>，代码对answer里面进行了改进。</p>
+<a id="more"></a>
+<p>将程序拷进来直接放到libsvm下用mex编译，mex svm_savemodel.c出现错误“Error using mex (line 206) Unable to complete successfully.”仔细检查了代码，发现没有什么问题，后来看到这个函数里面调用了定义在svm_save_model.c中的matlab_matrix_to_model()函数，联想到svmpredict和svmtrain的编译，再看make.m文件，找到了问题来源，将编译语句改为：<br>    mex CFLAGS=”$CFLAGS -std=c99” -largeArrayDims svm_savemodel.c ../svm.cpp svm_model_matlab.c </p>
+<p>即可成功通过编译。</p>
+<p>用heart_scale进行测试，没有问题，输出标准的model</p>
+<p>然而，当用我所需要的model测试时，却出现错误：</p>
+<pre><code>“<span class="type">number</span> <span class="keyword">of</span> <span class="constant">return</span> field <span class="keyword">is</span> <span class="keyword">not</span> correct”
+</code></pre><p>原因在于需要的model相比于标准的model结构体少了一个域，少了这个域并不会影响用模型进行测试，但是在这个函数里面却需要检查域的数量是否为11（svm_node结构体里面最后一项free_sv不考虑），再进一步看，该函数的核心函数是libsvm自带的函数svm_model_matlab.c，该函数实现了标准的model.model和model.mat之间的相互转换，注意，是“标准”的，要求model.mat结构体里面域必须是11个，贴代码如下：</p>
+<pre><code><span class="preprocessor">#<span class="keyword">include</span> &lt;stdlib.h&gt;</span>
+<span class="preprocessor">#<span class="keyword">include</span> &lt;string.h&gt;</span>
+<span class="preprocessor">#<span class="keyword">include</span> "../svm.h"</span>
+
+<span class="preprocessor">#<span class="keyword">include</span> "mex.h"</span>
+
+<span class="preprocessor">#ifdef MX_API_VER</span>
+<span class="preprocessor">#<span class="keyword">if</span> MX_API_VER &lt; 0x07030000</span>
+<span class="keyword">typedef</span> <span class="keyword">int</span> mwIndex;
+<span class="preprocessor">#<span class="keyword">endif</span></span>
+<span class="preprocessor">#<span class="keyword">endif</span></span>
+
+<span class="preprocessor">#<span class="keyword">define</span> NUM_OF_RETURN_FIELD 11</span>
+
+<span class="preprocessor">#<span class="keyword">define</span> Malloc(type,n) (type *)malloc((n)*sizeof(type))</span>
+
+<span class="keyword">static</span> <span class="keyword">const</span> <span class="keyword">char</span> *field_names[] = {
+<span class="string">"Parameters"</span>,
+<span class="string">"nr_class"</span>,
+<span class="string">"totalSV"</span>,
+<span class="string">"rho"</span>,
+<span class="string">"Label"</span>,
+<span class="string">"sv_indices"</span>,
+<span class="string">"ProbA"</span>,
+<span class="string">"ProbB"</span>,
+<span class="string">"nSV"</span>,
+<span class="string">"sv_coef"</span>,
+<span class="string">"SVs"</span>
+};
+<span class="keyword">struct</span> svm_model *matlab_matrix_to_model(<span class="keyword">const</span> mxArray *matlab_struct, <span class="keyword">const</span> <span class="keyword">char</span> **msg)
+{
+<span class="keyword">int</span> i, j, n, num_of_fields;
+<span class="keyword">double</span> *ptr;
+<span class="keyword">int</span> id = <span class="number">0</span>;
+<span class="keyword">struct</span> svm_node *x_space;
+<span class="keyword">struct</span> svm_model *model;
+mxArray **rhs;
+
+num_of_fields = mxGetNumberOfFields(matlab_struct);
+<span class="keyword">if</span>(num_of_fields != NUM_OF_RETURN_FIELD) 
+{
+    *msg = <span class="string">"number of return field is not correct"</span>;
+    <span class="keyword">return</span> NULL;
+}
+rhs = (mxArray **) mxMalloc(<span class="keyword">sizeof</span>(mxArray *)*num_of_fields);
+
+<span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;num_of_fields;i++)
+    rhs[i] = mxGetFieldByNumber(matlab_struct, <span class="number">0</span>, i);
+
+model = Malloc(<span class="keyword">struct</span> svm_model, <span class="number">1</span>);
+model-&gt;rho = NULL;
+model-&gt;probA = NULL;
+model-&gt;probB = NULL;
+model-&gt;label = NULL;
+model-&gt;sv_indices = NULL;
+model-&gt;nSV = NULL;
+model-&gt;free_sv = <span class="number">1</span>; <span class="comment">// XXX</span>
+
+ptr = mxGetPr(rhs[id]);
+model-&gt;param.svm_type = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+model-&gt;param.kernel_type  = (<span class="keyword">int</span>)ptr[<span class="number">1</span>];
+model-&gt;param.degree      = (<span class="keyword">int</span>)ptr[<span class="number">2</span>];
+model-&gt;param.gamma      = ptr[<span class="number">3</span>];
+model-&gt;param.coef0      = ptr[<span class="number">4</span>];
+id++;
+
+ptr = mxGetPr(rhs[id]);
+model-&gt;nr_class = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+id++;
+
+ptr = mxGetPr(rhs[id]);
+model-&gt;l = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+id++;
+
+<span class="comment">// rho</span>
+n = model-&gt;nr_class * (model-&gt;nr_class-<span class="number">1</span>)/<span class="number">2</span>;
+model-&gt;rho = (<span class="keyword">double</span>*) <span class="built_in">malloc</span>(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+ptr = mxGetPr(rhs[id]);
+<span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+    model-&gt;rho[i] = ptr[i];
+id++;
+
+<span class="comment">// label</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[id]) == <span class="number">0</span>)
+{
+    model-&gt;label = (<span class="keyword">int</span>*) <span class="built_in">malloc</span>(model-&gt;nr_class*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+    ptr = mxGetPr(rhs[id]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;nr_class;i++)
+        model-&gt;label[i] = (<span class="keyword">int</span>)ptr[i];
+}
+id++;
+
+<span class="comment">// sv_indices</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[id]) == <span class="number">0</span>)
+{
+    model-&gt;sv_indices = (<span class="keyword">int</span>*) <span class="built_in">malloc</span>(model-&gt;l*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+    ptr = mxGetPr(rhs[id]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;l;i++)
+        model-&gt;sv_indices[i] = (<span class="keyword">int</span>)ptr[i];
+}
+id++;
+
+<span class="comment">// probA</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[id]) == <span class="number">0</span>)
+{
+    model-&gt;probA = (<span class="keyword">double</span>*) <span class="built_in">malloc</span>(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+    ptr = mxGetPr(rhs[id]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+        model-&gt;probA[i] = ptr[i];
+}
+id++;
+
+<span class="comment">// probB</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[id]) == <span class="number">0</span>)
+{
+    model-&gt;probB = (<span class="keyword">double</span>*) <span class="built_in">malloc</span>(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+    ptr = mxGetPr(rhs[id]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+        model-&gt;probB[i] = ptr[i];
+}
+id++;
+
+<span class="comment">// nSV</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[id]) == <span class="number">0</span>)
+{
+    model-&gt;nSV = (<span class="keyword">int</span>*) <span class="built_in">malloc</span>(model-&gt;nr_class*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+    ptr = mxGetPr(rhs[id]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;nr_class;i++)
+        model-&gt;nSV[i] = (<span class="keyword">int</span>)ptr[i];
+}
+id++;
+
+<span class="comment">// sv_coef</span>
+ptr = mxGetPr(rhs[id]);
+model-&gt;sv_coef = (<span class="keyword">double</span>**) <span class="built_in">malloc</span>((model-&gt;nr_class-<span class="number">1</span>)*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+<span class="keyword">for</span>( i=<span class="number">0</span> ; i&lt; model-&gt;nr_class -<span class="number">1</span> ; i++ )
+    model-&gt;sv_coef[i] = (<span class="keyword">double</span>*) <span class="built_in">malloc</span>((model-&gt;l)*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+<span class="keyword">for</span>(i = <span class="number">0</span>; i &lt; model-&gt;nr_class - <span class="number">1</span>; i++)
+    <span class="keyword">for</span>(j = <span class="number">0</span>; j &lt; model-&gt;l; j++)
+        model-&gt;sv_coef[i][j] = ptr[i*(model-&gt;l)+j];
+id++;
+
+<span class="comment">// SV</span>
+{
+    <span class="keyword">int</span> sr, sc, elements;
+    <span class="keyword">int</span> num_samples;
+    mwIndex *ir, *jc;
+    mxArray *pprhs[<span class="number">1</span>], *pplhs[<span class="number">1</span>];
+
+    <span class="comment">// transpose SV</span>
+    pprhs[<span class="number">0</span>] = rhs[id];
+    <span class="keyword">if</span>(mexCallMATLAB(<span class="number">1</span>, pplhs, <span class="number">1</span>, pprhs, <span class="string">"transpose"</span>)) 
+    {
+        svm_free_and_destroy_model(&amp;model);
+        *msg = <span class="string">"cannot transpose SV matrix"</span>;
+        <span class="keyword">return</span> NULL;
+    }
+    rhs[id] = pplhs[<span class="number">0</span>];
+
+    sr = (<span class="keyword">int</span>)mxGetN(rhs[id]);
+    sc = (<span class="keyword">int</span>)mxGetM(rhs[id]);
+
+    ptr = mxGetPr(rhs[id]);
+    ir = mxGetIr(rhs[id]);
+    jc = mxGetJc(rhs[id]);
+
+    num_samples = (<span class="keyword">int</span>)mxGetNzmax(rhs[id]);
+
+    elements = num_samples + sr;
+
+    model-&gt;SV = (<span class="keyword">struct</span> svm_node **) <span class="built_in">malloc</span>(sr * <span class="keyword">sizeof</span>(<span class="keyword">struct</span> svm_node *));
+    x_space = (<span class="keyword">struct</span> svm_node *)<span class="built_in">malloc</span>(elements * <span class="keyword">sizeof</span>(<span class="keyword">struct</span> svm_node));
+
+    <span class="comment">// SV is in column</span>
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;sr;i++)
+    {
+        <span class="keyword">int</span> low = (<span class="keyword">int</span>)jc[i], high = (<span class="keyword">int</span>)jc[i+<span class="number">1</span>];
+        <span class="keyword">int</span> x_index = <span class="number">0</span>;
+        model-&gt;SV[i] = &amp;x_space[low+i];
+        <span class="keyword">for</span>(j=low;j&lt;high;j++)
+        {
+            model-&gt;SV[i][x_index].index = (<span class="keyword">int</span>)ir[j] + <span class="number">1</span>; 
+            model-&gt;SV[i][x_index].value = ptr[j];
+            x_index++;
+        }
+        model-&gt;SV[i][x_index].index = -<span class="number">1</span>;
+    }
+
+    id++;
+}
+mxFree(rhs);
+
+<span class="keyword">return</span> model;
+}
+</code></pre><p>这样对于域并不完全的model，就完全没有办法。</p>
+<p>于是我将此代码稍作修改，以适应我的需要，我的情况是没有sv_indice域，因此修改如下：</p>
+<pre><code><span class="keyword">struct</span> svm_model *matlab_matrix_to_model(<span class="keyword">const</span> mxArray *matlab_struct, <span class="keyword">const</span> <span class="keyword">char</span> **msg)
+{
+<span class="keyword">int</span> i, j, n, num_of_fields;
+<span class="keyword">double</span> *ptr;
+<span class="keyword">int</span> <span class="keyword">id</span> = <span class="number">0</span>;
+<span class="keyword">struct</span> svm_node *x_space;
+<span class="keyword">struct</span> svm_model *model;
+mxArray **rhs;
+
+num_of_fields = mxGetNumberOfFields(matlab_struct);
+printf(<span class="string">"%d\n"</span>,num_of_fields);
+<span class="comment">//允许10个的也可以</span>
+<span class="keyword">if</span>(num_of_fields != NUM_OF_RETURN_FIELD&amp;&amp;num_of_fields!=NUM_OF_RETURN_FIELD-<span class="number">1</span>) 
+{
+    *msg = <span class="string">"number of return field is not correct"</span>;
+
+    <span class="keyword">return</span> <span class="literal">NULL</span>;
+}
+rhs = (mxArray **) mxMalloc(<span class="keyword">sizeof</span>(mxArray *)*num_of_fields);
+
+<span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;num_of_fields;i++)
+    rhs[i] = mxGetFieldByNumber(matlab_struct, <span class="number">0</span>, i);
+
+model = Malloc(<span class="keyword">struct</span> svm_model, <span class="number">1</span>);
+model-&gt;rho = <span class="literal">NULL</span>;
+model-&gt;probA = <span class="literal">NULL</span>;
+model-&gt;probB = <span class="literal">NULL</span>;
+model-&gt;label = <span class="literal">NULL</span>;
+model-&gt;sv_indices = <span class="literal">NULL</span>;
+model-&gt;nSV = <span class="literal">NULL</span>;
+model-&gt;free_sv = <span class="number">1</span>; <span class="comment">// XXX</span>
+
+ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+model-&gt;param<span class="variable">.svm_type</span> = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+model-&gt;param<span class="variable">.kernel_type</span>  = (<span class="keyword">int</span>)ptr[<span class="number">1</span>];
+model-&gt;param<span class="variable">.degree</span>      = (<span class="keyword">int</span>)ptr[<span class="number">2</span>];
+model-&gt;param<span class="variable">.gamma</span>      = ptr[<span class="number">3</span>];
+model-&gt;param<span class="variable">.coef0</span>      = ptr[<span class="number">4</span>];
+<span class="keyword">id</span>++;
+
+ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+model-&gt;nr_class = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+<span class="keyword">id</span>++;
+
+ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+model-&gt;l = (<span class="keyword">int</span>)ptr[<span class="number">0</span>];
+<span class="keyword">id</span>++;
+
+<span class="comment">// rho</span>
+n = model-&gt;nr_class * (model-&gt;nr_class-<span class="number">1</span>)/<span class="number">2</span>;
+model-&gt;rho = (<span class="keyword">double</span>*) malloc(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+<span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+    model-&gt;rho[i] = ptr[i];
+<span class="keyword">id</span>++;
+
+<span class="comment">// label</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[<span class="keyword">id</span>]) == <span class="number">0</span>)
+{
+    model-&gt;label = (<span class="keyword">int</span>*) malloc(model-&gt;nr_class*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+    ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;nr_class;i++)
+        model-&gt;label[i] = (<span class="keyword">int</span>)ptr[i];
+}
+<span class="keyword">id</span>++;
+
+<span class="keyword">if</span>(num_of_fields==NUM_OF_RETURN_FIELD)
+{
+    <span class="comment">// sv_indices</span>
+    <span class="keyword">if</span>(mxIsEmpty(rhs[<span class="keyword">id</span>]) == <span class="number">0</span>)
+    {
+        model-&gt;sv_indices = (<span class="keyword">int</span>*) malloc(model-&gt;l*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+        ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+        <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;l;i++)
+            model-&gt;sv_indices[i] = (<span class="keyword">int</span>)ptr[i];
+    }
+    <span class="keyword">id</span>++;
+}
+<span class="comment">// probA</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[<span class="keyword">id</span>]) == <span class="number">0</span>)
+{
+    model-&gt;probA = (<span class="keyword">double</span>*) malloc(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+    ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+        model-&gt;probA[i] = ptr[i];
+}
+<span class="keyword">id</span>++;
+
+<span class="comment">// probB</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[<span class="keyword">id</span>]) == <span class="number">0</span>)
+{
+    model-&gt;probB = (<span class="keyword">double</span>*) malloc(n*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+    ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;n;i++)
+        model-&gt;probB[i] = ptr[i];
+}
+<span class="keyword">id</span>++;
+
+<span class="comment">// nSV</span>
+<span class="keyword">if</span>(mxIsEmpty(rhs[<span class="keyword">id</span>]) == <span class="number">0</span>)
+{
+    model-&gt;nSV = (<span class="keyword">int</span>*) malloc(model-&gt;nr_class*<span class="keyword">sizeof</span>(<span class="keyword">int</span>));
+    ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;model-&gt;nr_class;i++)
+        model-&gt;nSV[i] = (<span class="keyword">int</span>)ptr[i];
+}
+<span class="keyword">id</span>++;
+
+<span class="comment">// sv_coef</span>
+ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+model-&gt;sv_coef = (<span class="keyword">double</span>**) malloc((model-&gt;nr_class-<span class="number">1</span>)*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+<span class="keyword">for</span>( i=<span class="number">0</span> ; i&lt; model-&gt;nr_class -<span class="number">1</span> ; i++ )
+    model-&gt;sv_coef[i] = (<span class="keyword">double</span>*) malloc((model-&gt;l)*<span class="keyword">sizeof</span>(<span class="keyword">double</span>));
+<span class="keyword">for</span>(i = <span class="number">0</span>; i &lt; model-&gt;nr_class - <span class="number">1</span>; i++)
+    <span class="keyword">for</span>(j = <span class="number">0</span>; j &lt; model-&gt;l; j++)
+        model-&gt;sv_coef[i][j] = ptr[i*(model-&gt;l)+j];
+<span class="keyword">id</span>++;
+
+<span class="comment">// SV</span>
+{
+    <span class="keyword">int</span> sr, sc, elements;
+    <span class="keyword">int</span> num_samples;
+    mwIndex *ir, *jc;
+    mxArray *pprhs[<span class="number">1</span>], *pplhs[<span class="number">1</span>];
+
+    <span class="comment">// transpose SV</span>
+    pprhs[<span class="number">0</span>] = rhs[<span class="keyword">id</span>];
+    <span class="keyword">if</span>(mexCallMATLAB(<span class="number">1</span>, pplhs, <span class="number">1</span>, pprhs, <span class="string">"transpose"</span>)) 
+    {
+        svm_free_and_destroy_model(&amp;model);
+        *msg = <span class="string">"cannot transpose SV matrix"</span>;
+        <span class="keyword">return</span> <span class="literal">NULL</span>;
+    }
+    rhs[<span class="keyword">id</span>] = pplhs[<span class="number">0</span>];
+
+    sr = (<span class="keyword">int</span>)mxGetN(rhs[<span class="keyword">id</span>]);
+    sc = (<span class="keyword">int</span>)mxGetM(rhs[<span class="keyword">id</span>]);
+
+    ptr = mxGetPr(rhs[<span class="keyword">id</span>]);
+    ir = mxGetIr(rhs[<span class="keyword">id</span>]);
+    jc = mxGetJc(rhs[<span class="keyword">id</span>]);
+
+    num_samples = (<span class="keyword">int</span>)mxGetNzmax(rhs[<span class="keyword">id</span>]);
+
+    elements = num_samples + sr;
+
+    model-&gt;SV = (<span class="keyword">struct</span> svm_node **) malloc(sr * <span class="keyword">sizeof</span>(<span class="keyword">struct</span> svm_node *));
+    x_space = (<span class="keyword">struct</span> svm_node *)malloc(elements * <span class="keyword">sizeof</span>(<span class="keyword">struct</span> svm_node));
+
+    <span class="comment">// SV is in column</span>
+    <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;sr;i++)
+    {
+        <span class="keyword">int</span> low = (<span class="keyword">int</span>)jc[i], high = (<span class="keyword">int</span>)jc[i+<span class="number">1</span>];
+        <span class="keyword">int</span> x_index = <span class="number">0</span>;
+        model-&gt;SV[i] = &amp;x_space[low+i];
+        <span class="keyword">for</span>(j=low;j&lt;high;j++)
+        {
+            model-&gt;SV[i][x_index]<span class="variable">.index</span> = (<span class="keyword">int</span>)ir[j] + <span class="number">1</span>; 
+            model-&gt;SV[i][x_index]<span class="variable">.value</span> = ptr[j];
+            x_index++;
+        }
+        model-&gt;SV[i][x_index]<span class="variable">.index</span> = -<span class="number">1</span>;
+    }
+
+    <span class="keyword">id</span>++;
+}
+mxFree(rhs);
+
+<span class="keyword">return</span> model;
+}
+</code></pre><p><a href="/files/svm_save_model.c">svm_save_model.c</a></p>
+<p><a href="/files/svm_model_matlab.c">svm_model_matlab.c</a></p>
+<p>如果你情况类似，缺乏哪个域可以用相应类似的方式，感兴趣的话可以将所有异常的情况都考虑了。急着去做下一步，暂时现弄一个项目适用的。</p>
+<p>这样就可以有两种方案：</p>
+<p>1.将修改后的代码用于我的程序之中，仍然读取mat文件，用修改后的函数进行转换。</p>
+<p>2.对修改后的代码mex编译，在matlab上面转化.mat到.model</p>
+<pre><code><span class="built_in">load</span>(<span class="string">'model.mat'</span>);
+
+svm_savemodel(model,<span class="string">'model.model'</span>);
+</code></pre><p>尝试第一种方案，结果在调用matlab转置函数mexCallMATLAB(1, pplhs, 1, pprhs, “transpose”)的时候出错，原因没有细究，猜测是路劲配置的问题。</p>
+<p>尝试第二种方案，成功！</p>
+<p>其实相比第一种方案，第二种方案更加的方便和高效。</p>
+<p>结果如图所示：</p>
+<p><img src="http://7vikyk.com1.z0.glb.clouddn.com/libSVM-matlab.PNG" alt=""></p>
+<p><img src="http://7vikyk.com1.z0.glb.clouddn.com/libSVM-model.PNG" alt=""></p>
+<p>结论：</p>
+<p>1.不同的情况适用性不同，libsvm的库仍有不完善的地方</p>
+<p>2.善用mex编程可以方便地实现C++和matlab混合编程</p>
+
+    
+    
+    <footer class="meta">
+      
+      
+  <div class="tags">
+<a href="/tags/LibSVM/">LibSVM</a></div>
+
+      
+    </footer>
+    
+  </div>
+  
+</article></div>
+  <footer id="footer" class="inner"><div class="social alignright">
+  
+  
+  
+    <a class="twitter" href="http://twitter.com/buptlijun" title="Twitter">Twitter</a>
+  
+  
+    <a class="github" href="https://github.com/pwh11" title="GitHub">GitHub</a>
+  
+  <a class="rss" href="/atom.xml" title="RSS">RSS</a>
+</div>
+<p>
+  
+  &copy; 2015 pwh1
+  
+</p>
+<div class="clearfix"></div></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id="phasebeam">
+  <canvas></canvas>
+  <canvas></canvas>
+  <canvas></canvas>
+</div>
+<script src="/js/phasebeam.js"></script>
+<!-- mathjax config similar to math.stackexchange -->
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      processEscapes: true
+    }
+  });
+</script>
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {
+        skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    });
+</script>
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for(i=0; i < all.length; i += 1) {
+            all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+    });
+</script>
+
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+</body>
+</html>
